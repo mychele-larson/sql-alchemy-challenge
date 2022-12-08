@@ -44,12 +44,25 @@ app = Flask(__name__)
 @app.route("/")
 def welcome():
     return(
-        f"Welcome to the best climate statistics page ever!<br/>"
+        f"Welcome to the best VACATION TEMP APP!!<br/>"
+        f"<br/>"
+        f"<br/>"
         f"Available Routes:<br/>"
+        f"<br/>"
         f"/api/v1.0/precipitation<br/>"
+        f"The dates and precipitation amounts from the previous year.<br/>"
+        f"<br/>"
         f"/api/v1.0/stations<br/>"
+        f"The list of observatory stations collecting the data."
+        f"<br/>"
+        f"<br/>"
         f"/api/v1.0/tobs<br/>"
-        F"/api/v1.0/temp/start/end"
+        f"The temperature observations from the previous year.<br/>"
+        f"<br/>"
+        F"/api/v1.0/temp/start/end<br/>"
+        f"The list of minimum, maximum and average temperatures between 08-22-2016 through 08-23-2017.<br/>"
+        f"<br/>"
+        f"Thanks for visiting the app!"
     )
 
 # create API for precipitation using date as key and prcp as value
@@ -60,15 +73,21 @@ def precipitation():
     precipitation = session.query(Measurement.date, Measurement.prcp).\
         filter(Measurement.date >= last_year).all()
     precip = {date: prcp for date, prcp in precipitation}
+
+#Return a JSON list of the date and precipitations for the previous year
     return jsonify(precip)
 
-# Return a JSON list of stations from the dataset
+
+# Create a list of all available observation stations
 @app.route("/api/v1.0/stations")
 
 def station():
-    results = session.query(Station.station).all()
-    stations = list(np.ravel(results))
-    return jsonify(stations=stations)
+    results = session.query(Station.station).group_by(Station.station).all()
+    list_stations = list(np.ravel(results))
+
+    # Return a JSON list of stations from the dataset
+    return jsonify(list_stations)
+
 
 # Query the dates and temps of the most active station for the previous year
 @app.route("/api/v1.0/tobs")
@@ -76,33 +95,46 @@ def station():
 def monthly_temp():
     last_year = dt.date(2017,8,23) - dt.timedelta(days=365)
     results2 = session.query(Measurement.tobs).\
-        filter(Measurement.station == 'USC00519281').\
+        filter(Station.station == 'USC00519281').\
         filter(Measurement.date >= last_year).all()
     temperature = list(np.ravel(results2))
-    return jsonify(temperature=temperature)
 
-#Return a JSON list of min, avg, and max temps for specific start or start-end range of dates
-@app.route("/api/v1.0/temp/<start>")
+    # Return list of most active station dates and temps for previous list in JSON format
+    return jsonify(temperature)
+
+# Query the temperature min, max and average for specific start and end ranges of dates.
 @app.route("/api/v1.0/temp/<start>/<end>")
 
+def stats(start=None, end=None):
+    if start is None:
+        start = dt.date(2017, 8, 23)
+    if end is None:
+        end = dt.date(2016, 8, 22)
 
-def stats(start=dt.date("2016-08-21"), end=dt.date("2017-08-23")):
-    sel = [func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)]
+    results3 = session.query(func.min(Measurement.tobs).\
+                            func.avg(Measurement.tobs).\
+                            func.max(Measurement.tobs)).\
+            filter(Measurement.date >= start).filter(Measurement.date <= end).all()
 
-    if not end:
-        results = session.query(*sel).\
-            filter(Measurement.date >= start).\
-            filter(Measurement.date <= end).all()
-        temps = list(np.ravel(results))
-        return jsonify(temps=temps)
+    all_tobs = []
+    for tobs in results3:
+        tobs_dict = {}
+        tobs_dict["MIN"] = tobs[0]
+        tobs_dict["AVG"] = tobs[1]
+        tobs_dict["MAX"] = tobs[2]
+        
+    all_tobs.append(tobs_dict)
 
-    results = session.query(*sel).\
-            filter(Measurement.date >= start).\
-            filter(Measurement.date <= end).all()
-    temps = list(np.ravel(results))
-    return jsonify(temps=temps)
-
+#Return a JSON list of above data findings.
+    return jsonify(all_tobs)
 
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+
+
+
+
+
